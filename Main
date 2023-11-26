@@ -1,104 +1,159 @@
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-abstract class Employee{
+abstract class Employee {
     private String name;
     private int id;
 
-    public Employee(String name, int id){
+    public Employee(String name, int id) {
         this.name = name;
         this.id = id;
     }
-    public String getName(){
+
+    public String getName() {
         return name;
     }
-    public int getId(){
+
+    public int getId() {
         return id;
     }
 
     public abstract double calculateSalary();
 
     @Override
-    public String toString(){
-        return "Employee[name="+name+", id="+id+", Salary="+calculateSalary()+"]";
+    public String toString() {
+        return "Employee[name=" + name + ", id=" + id + ", Salary=" + calculateSalary() + "]";
     }
 }
 
-class FullTimeEmployee extends Employee{
+class FullTimeEmployee extends Employee {
     private double monthlySalary;
 
-    public FullTimeEmployee(String name, int id, double monthlySalary){
+    public FullTimeEmployee(String name, int id, double monthlySalary) {
         super(name, id);
         this.monthlySalary = monthlySalary;
     }
 
     @Override
-    public double calculateSalary(){
+    public double calculateSalary() {
         return monthlySalary;
     }
 }
 
-class PartTimeEmployee extends Employee{
+class PartTimeEmployee extends Employee {
     private int hoursWorked;
     private double hourlyRate;
 
-    public PartTimeEmployee(String name, int id, int hoursWorked, double hourlyRate){
+    public PartTimeEmployee(String name, int id, int hoursWorked, double hourlyRate) {
         super(name, id);
         this.hoursWorked = hoursWorked;
         this.hourlyRate = hourlyRate;
     }
 
     @Override
-    public double calculateSalary(){
+    public double calculateSalary() {
         return hoursWorked * hourlyRate;
     }
 }
 
-class PayrollSystem{
+class PayrollSystem {
     private ArrayList<Employee> employeeList;
 
-    public PayrollSystem(){
+    public PayrollSystem() {
         employeeList = new ArrayList<>();
     }
 
-    public void addEmpolyee(Employee employee){
+    public void addEmployee(Employee employee) {
         employeeList.add(employee);
     }
 
-    public void removeEmployee(int id){
+    public void removeEmployee(int id) {
         Employee employeeToRemove = null;
 
-        for(Employee employee : employeeList){
-            if(employee.getId()==id){
+        for (Employee employee : employeeList) {
+            if (employee.getId() == id) {
                 employeeToRemove = employee;
                 break;
             }
         }
-        if(employeeToRemove != null){
+        if (employeeToRemove != null) {
             employeeList.remove(employeeToRemove);
         }
     }
 
-    public void displayEmployee(){
-        for(Employee employee :employeeList){
+    public void setEmployeeList(List<Employee> employees) {
+        employeeList.addAll(employees);
+    }
+
+    public void displayEmployee() {
+        for (Employee employee : employeeList) {
             System.out.println(employee);
         }
     }
 }
+
 public class Main {
+    private static final String JDBC_URL = "jdbc:mysql://localhost:3307/employee_db";
+    private static final String USER = "root";
+    private static final String PASSWORD = "";
+
     public static void main(String[] args) {
-       PayrollSystem payrollSystem = new PayrollSystem();
-       FullTimeEmployee emp1 = new FullTimeEmployee("Rohit",1, 70000.0);
-       PartTimeEmployee emp2 = new PartTimeEmployee("Ritika", 2, 40, 1000);
+        try (Connection connection = DriverManager.getConnection(JDBC_URL, USER, PASSWORD)) {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "INSERT INTO employee (id, name, salary) VALUES (?, ?, ?)")) {
 
-       payrollSystem.addEmpolyee(emp1);
-       payrollSystem.addEmpolyee(emp2);
-       System.out.println("Initial Employee Details: ");
-       payrollSystem.displayEmployee();
-       System.out.println("Removing Employee: ");
-       payrollSystem.removeEmployee(1);
-       System.out.println("Remaianing Emplyee Details: ");
-       payrollSystem.displayEmployee();
+                PayrollSystem payrollSystem = new PayrollSystem();
+                FullTimeEmployee emp1 = new FullTimeEmployee("Rohit", 1, 70000.0);
+                PartTimeEmployee emp2 = new PartTimeEmployee("Ritika", 2, 40, 1000);
 
+                addEmployeeToDatabase(statement, emp1);
+                addEmployeeToDatabase(statement, emp2);
+
+                List<Employee> employees = retrieveEmployeesFromDatabase(connection);
+                payrollSystem.setEmployeeList(employees);
+
+                System.out.println("Initial Employee Details: ");
+                payrollSystem.displayEmployee();
+
+                System.out.println("Removing Employee: ");
+                payrollSystem.removeEmployee(1);
+
+                System.out.println("Remaining Employee Details: ");
+                payrollSystem.displayEmployee();
+
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void addEmployeeToDatabase(PreparedStatement statement, Employee employee) throws SQLException {
+        statement.setInt(1, employee.getId());
+        statement.setString(2, employee.getName());
+        statement.setDouble(3, employee.calculateSalary());
+        statement.executeUpdate();
+    }
+
+    private static List<Employee> retrieveEmployeesFromDatabase(Connection connection) throws SQLException {
+        List<Employee> employees = new ArrayList<>();
+
+        try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM employee");
+             ResultSet resultSet = statement.executeQuery()) {
+
+            while (resultSet.next()) {
+                int id = resultSet.getInt("id");
+                String name = resultSet.getString("name");
+                double salary = resultSet.getDouble("salary");
+
+                //assuming all employees are full-time
+                FullTimeEmployee employee = new FullTimeEmployee(name, id, salary);
+                employees.add(employee);
+            }
+        }
+
+        return employees;
     }
 }
